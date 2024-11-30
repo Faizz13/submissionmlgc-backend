@@ -1,24 +1,39 @@
 import { InputError } from '../exceptions/InputError.js';
-import tf from '@tensorflow/tfjs-node';
+import * as tf from '@tensorflow/tfjs-node';
 
-async function predictClassification(model, image) {
+async function predictClassification(model, imageBuffer) {
   try {
+    // Decode image buffer dan preprocessing
     const tensor = tf.node
-      .decodeJpeg(image)
-      .resizeNearestNeighbor([224, 224])
-      .expandDims()
-      .toFloat();
+      .decodeJpeg(imageBuffer)
+      .resizeNearestNeighbor([224, 224]) // Ubah ukuran ke 224x224
+      .expandDims(0) // Tambahkan dimensi batch
+      .toFloat()
+      .div(tf.scalar(255)); // Normalisasi nilai piksel
 
+    // Lakukan prediksi
     const prediction = model.predict(tensor);
-    const score = await prediction.data();
-    const resultScore = Math.max(...score) * 100;
-    const result = resultScore > 50 ? 'Cancer' : 'Non-cancer';
+    const scores = await prediction.data(); // Ambil skor sebagai array
+
+    tensor.dispose(); // Bebaskan memori tensor
+    prediction.dispose(); // Bebaskan memori hasil prediksi
+
+    // Log untuk melihat skor hasil prediksi
+    console.log("Prediction Scores:", scores);
+
+    // Proses hasil prediksi
+    const resultScore = Math.max(...scores) * 100; // Skor tertinggi
+    const result = resultScore > 50 ? 'Cancer' : 'Non-cancer'; // Klasifikasi
+
+    // Log untuk debugging
+    console.log('Prediction Results:', { resultScore, result });
 
     const suggestion =
       result === 'Cancer' ? 'Segera periksa ke dokter!' : 'Anda sehat!';
 
     return { resultScore, result, suggestion };
   } catch (error) {
+    console.error('Error in prediction:', error.message);
     throw new InputError('Terjadi kesalahan dalam melakukan prediksi');
   }
 }
